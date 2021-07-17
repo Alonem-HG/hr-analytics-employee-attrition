@@ -1,12 +1,9 @@
-# Analisis de datos de recursos humanos sobre la desercion de los empleados.  
+# Simulacion de datos de recursos humanos.  
 
-Realizar un analisis  de exploracion de datos.  
-Resolver la pregunta:  
-### ¿Como predecir quienes van a renunciar y que factores lo determinan?.  
-
-Problemas a resolver:  
- ¿Cual modelo debemos usar?  (Podria ser de regresion lineal)  
- Datos sean en su mayoria numericos  
- Mas estadistica  
- Encontrar datos atipicos  
+### Objetivos: 
+ 1. Realizar un analisis  de exploracion de datos.    
+ 2. ¿Como predecir quienes van a renunciar y que factores lo determinan?.
+ 3. Determinar que modelo de machine learning es el mas optimo.  
+ 4. Predecir que empleado va a renunciar.
+ 5. Sugerir o dar una conclusion.
   
