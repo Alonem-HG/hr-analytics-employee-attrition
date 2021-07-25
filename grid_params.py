@@ -1,10 +1,12 @@
 import numpy as np
-# Scalers
+# scalers
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import Normalizer
 from sklearn.preprocessing import PowerTransformer
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MaxAbsScaler
 # best parameters
+from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV
 #train
 from sklearn.model_selection import train_test_split
@@ -12,7 +14,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.linear_model import RidgeClassifier, SGDClassifier, LogisticRegression
-from sklearn.svm import SVC, LinearSVC
+from sklearn import svm
+from sklearn.svm import LinearSVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
@@ -20,76 +23,48 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.feature_selection import SelectFromModel
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier
 from sklearn.ensemble import BaggingClassifier, VotingClassifier, RandomTreesEmbedding
+#suppress warning
+import warnings
+warnings.filterwarnings('ignore')
 
-def logreg_best_params(X_train, y_train, X_test, y_test):
+def lr_enhance(X_train, y_train, X_test, y_test):
+    std_slc = StandardScaler()
+    pca = PCA()
+    logistic_Reg = LogisticRegression()
 
-    lg = LogisticRegression()
-    
-    # Hiperparámetros 
-    #complex
-    param_complex_grid = {'penalty': ['l1', 'l2','elasticnet'],#'elasticnet','none'
-                  'C': np.logspace(-4, 4, 50), #np.logspace(0, 4, 10),[0.01, 0.1, 1, 2, 10, 100]
-                  'class_weight': ['none', 'balanced'],
-                  'solver': ['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'],
-                  'max_iter':[1000]} #1000,5000, 
+    pipe = Pipeline([('std_slc', std_slc),
+                            ('pca', pca),
+                            ('logistic_Reg', logistic_Reg)])
 
-    #moderate
-    param_moderate_grid = {'C':np.logspace(-4, 4, 50), 
-                      'penalty': ['l1', 'l2'],
-                      'max_iter':[5000,10000]} 
+    #n_components = list(range(1,X.shape[1]+1,1))
 
-    #Basic
-    param_basic_grid={"C": np.logspace(-5, 20, 30), 
-                      "penalty":['none', 'l1', 'l2', 'elasticnet'],
-                      "max_iter":[30000]}
+    parameters = {'std_slc':[StandardScaler(), MinMaxScaler(),Normalizer(), MaxAbsScaler()],
+                'pca__n_components':list(range(1,X_train.shape[1]+1,1)),
+                'logistic_Reg__C': np.logspace(-4, 4, 20),
+                'logistic_Reg__penalty': ['l1', 'l2'],
+                'logistic_Reg__max_iter':[30000]} 
 
-    lg_cv = GridSearchCV(lg, 
-                          param_basic_grid,
-                          #verbose=3,
-                          scoring = 'accuracy',
-                          n_jobs=-1,# usar todo el procesador  
-                          cv = 10)
+    clf_GS = GridSearchCV(pipe, parameters,
+                        scoring = 'accuracy',
+                        n_jobs=-1,# usar todo el procesador  
+                        cv = 5)
+    clf_GS.fit(X_train, y_train)
 
+    print("Accuracy: ", clf_GS.score(X_test, y_test))
+    print('Data Normalization: ',clf_GS.best_estimator_['std_slc'])
+    print('')
+    print(clf_GS.best_estimator_.get_params()['logistic_Reg'])
+    print('')
+    best= print("Best parameters:",clf_GS.best_params_)
+    return best
 
-    lg_cv.fit(X_train, y_train)
-    print("Accuracy without scaling: ", lg_cv.score(X_test, y_test))
-
-    # StandardScaler 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    lg_cv.fit(X_train_scaled, y_train)
-    X_test_scaled = scaler.transform(X_test)
-    print("Accuracy with scaling StandardScaler ", lg_cv.score(X_test_scaled, y_test))
-
-    # MinMaxScaler
-    mms = MinMaxScaler(feature_range = (0,1))
-    X_train_mms = mms.fit_transform(X_train)
-    lg_cv.fit(X_train_mms, y_train)
-    X_test_mms = mms.transform(X_test)
-    print("Accuracy with scaling MinMaxScaler ", lg_cv.score(X_test_mms, y_test))
-
-    # Normalize 
-    norm= Normalizer()
-    normalized_X = norm.fit_transform(X_train)
-    lg_cv.fit(normalized_X, y_train)
-    X_test_norm = norm.transform(X_test)
-    print("Accuracy with scaling Normalizer ", lg_cv.score(X_test_norm, y_test))
-
-    #PowerTransformer
-    ss = PowerTransformer()
-    X_pt = ss.fit_transform(X_train)
-    lg_cv.fit(X_pt, y_train)
-    X_test_pt = ss.transform(X_test)
-    print("Accuracy with scaling PowerTransformer ", lg_cv.score(X_test_pt, y_test))
-
-    
-    besT = print("Best params LogisticRegression",lg_cv.best_params_)
-    return besT
-
-def xgbc_best_params(X_train, y_train, X_test, y_test):
-    
+def xgbc_enhance(X_train, y_train, X_test, y_test):
+    std_slc = StandardScaler()
     xgbc = XGBClassifier()
     
+    pipe = Pipeline([('std_slc', std_slc),('xgbc', xgbc)])
+
+
     # Hiperparámetros
     #brute force scan for all parameters, here are the tricks
     #usually max_depth is 6,7,8
@@ -98,141 +73,112 @@ def xgbc_best_params(X_train, y_train, X_test, y_test):
     #much fun of fighting against overfit 
     #n_estimators is how many round of boosting
     #finally, ensemble xgboost with multiple seeds may reduce variance
-    parameters = {'nthread':[4], #[4]when use hyperthread, xgboost may become slower
-                  'objective':['binary:logistic'],
-                  'learning_rate': [0.01, 0.02, 0.03,0.04,0.05], #so called `eta` value
-                  'max_depth': [6],
-                  'min_child_weight': [1, 5, 11],
-                  'gamma': [0.5, 1, 1.5, 2, 5],
-                  'silent': [1],
-                  'subsample': [0.6, 0.8, 1.0],
-                  'colsample_bytree': [0.4,0.6, 0.7,0.8, 1.0],
-                  'n_estimators': [600, 800, 1000]} #number of trees, change it to 1000 for better results
+    parameters = {'std_slc':[StandardScaler(), MinMaxScaler(),Normalizer(), MaxAbsScaler()],
+                  'xgbc__use_label_encoder':[False],
+                  'xgbc__eval_metric':['mlogloss'],
+                  'xgbc__nthread':[4], #[4]when use hyperthread, xgboost may become slower
+                  #'xgbc__objective':['binary:logistic'],
+                  'xgbc__learning_rate': [0.01, 0.02, 0.05, 0.1, 0.25], #so called `eta` value
+                  'xgbc__max_depth': [7],
+                  'xgbc__min_child_weight': [1, 5, 7, 10],
+                  'xgbc__gamma': [0.5, 1, 1.5, 2, 5],
+                  #'silent': [1],
+                  'xgbc__subsample': [0.6, 0.8, 1.0],
+                  'xgbc__colsample_bytree': [0.6, 0.8, 1.0],
+                  'xgbc__n_estimators': [1000]} #number of trees, change it to 1000 for better results
                   #'missing':[-999]}
 
-    xgbc_cv = GridSearchCV(xgbc, 
-                          parameters,
+    # A parameter grid for XGBoost
+    params = {
+            'xgbc__n_estimators' : [500],
+            'xgbc__learning_rate' : [0.01, 0.02, 0.05, 0.1, 0.25],
+            'xgbc__min_child_weight': [1, 5, 7, 10],
+            'xgbc__gamma': [0.1, 0.5, 1, 1.5, 5],
+            'xgbc__subsample': [0.6, 0.8, 1.0],
+            'xgbc__colsample_bytree': [0.6, 0.8, 1.0],
+            'xgbc__max_depth': [8]
+            }
+
+    xgbc_cv = GridSearchCV(pipe, params,
                           #verbose=3,
                           scoring = 'accuracy',
                           n_jobs=-1,# usar todo el procesador  
-                          cv = 10)
-        
+                          cv = 5)
+
     xgbc_cv.fit(X_train, y_train)
-    print("accuracy without scaling: ", xgbc_cv.score(X_test, y_test))
 
-    # StandardScaler 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    xgbc_cv.fit(X_train_scaled, y_train)
-    X_test_scaled = scaler.transform(X_test)
-    print("accuracy with scaling StandardScaler ", xgbc_cv.score(X_test_scaled, y_test))
+    print("Accuracy: ", xgbc_cv.score(X_test, y_test))
+    print('Data Normalization: ',xgbc_cv.best_estimator_['std_slc'])
+    print('')
+    print(xgbc_cv.best_estimator_.get_params()['xgbc'])
+    print('')
+    best= print("Best parameters:", xgbc_cv.best_params_)
+    return best
 
-    # MinMaxScaler
-    mms = MinMaxScaler()
-    X_train_mms = mms.fit_transform(X_train)
-    xgbc_cv.fit(X_train_mms, y_train)
-    X_test_mms = mms.transform(X_test)
-    print("accuracy with scaling MinMaxScaler ", xgbc_cv.score(X_test_mms, y_test))
-
-    # Normalize 
-    norm= Normalizer()
-    normalized_X = norm.fit_transform(X_train)
-    xgbc_cv.fit(normalized_X, y_train)
-    X_test_norm = norm.transform(X_test)
-    print("accuracy with scaling Normalizer ", xgbc_cv.score(X_test_norm, y_test))
-
-    #PowerTransformer
-    ss = PowerTransformer()
-    X_pt = ss.fit_transform(X_train)
-    xgbc_cv.fit(X_pt, y_train)
-    X_test_pt = ss.transform(X_test)
-    print("Accuracy with scaling PowerTransformer ", xgbc_cv.score(X_test_pt, y_test))
-    
-    besT = xgbc_cv.best_params_
-    return besT
-
-def knn_best_params(X_train, y_train, X_test, y_test):
-    
+def knn_enhance(X_train, y_train, X_test, y_test):
+    SS = StandardScaler()
     KNN = KNeighborsClassifier()
     
+    pipe = Pipeline([('ss', SS),('knn', KNN)])
+
     n_range = np.arange(2,30)
     n_neighbors= n_range.tolist()
     weights = ['uniform', 'distance']
     metric = ['euclidean', 'manhattan', 'minkowski']
     algorithm = ['auto', 'ball_tree', 'kd_tree', 'brute']
     
-    param_grid = {"n_neighbors": n_neighbors, 
-                  "weights": weights,
-                  "metric": metric,
-                  "algorithm":algorithm}
+    param_grid = {"ss":[StandardScaler(), MinMaxScaler(),Normalizer(), MaxAbsScaler()],
+                  "knn__n_neighbors": n_neighbors, 
+                  "knn__weights": weights,
+                  "knn__metric": metric,
+                  "knn__algorithm":algorithm}
     
-    KNN_cv = GridSearchCV(KNN,
-                          param_grid,
+    KNN_cv = GridSearchCV(pipe,param_grid,
                          # verbose=3,#details
-                          scoring = 'accuracy',  
-                          cv = 10)
+                          scoring = 'accuracy',
+                          n_jobs=-1,  
+                          cv = 5)
     
     KNN_cv.fit(X_train, y_train)
-    print("accuracy without scaling: ", KNN_cv.score(X_test, y_test))
 
-    # StandardScaler 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    KNN_cv.fit(X_train_scaled, y_train)
-    X_test_scaled = scaler.transform(X_test)
-    print("Accuracy with scaling StandardScaler ", KNN_cv.score(X_test_scaled, y_test))
+    print("Accuracy: ", KNN_cv.score(X_test, y_test))
+    print('Data Normalization: ',KNN_cv.best_estimator_['ss'])
+    print('')
+    print(KNN_cv.best_estimator_.get_params()['knn'])
+    print('')
+    best= KNN_cv.best_params_
+    return best
 
-    # MinMaxScaler
-    mms = MinMaxScaler()
-    X_train_mms = mms.fit_transform(X_train)
-    KNN_cv.fit(X_train_mms, y_train)
-    X_test_mms = mms.transform(X_test)
-    print("Accuracy with scaling MinMaxScaler ", KNN_cv.score(X_test_mms, y_test))
 
-    # Normalize 
-    norm= Normalizer()
-    normalized_X = norm.fit_transform(X_train)
-    KNN_cv.fit(normalized_X, y_train)
-    X_test_norm = norm.transform(X_test)
-    print("Accuracy with scaling Normalizer ", KNN_cv.score(X_test_norm, y_test))
-
-    #PowerTransformer
-    ss = PowerTransformer()
-    X_pt = ss.fit_transform(X_train)
-    KNN_cv.fit(X_pt, y_train)
-    X_test_pt = ss.transform(X_test)
-    print("Accuracy with scaling PowerTransformer ", KNN_cv.score(X_test_pt, y_test))
+def svc_enhance(X_train, y_train, X_test, y_test):
+    SS = StandardScaler()
+    SVC = svm.SVC()
     
-    besT = KNN_cv.best_params_
-    return besT
-
-
-def svc_best_params(X_train, y_train, X_test, y_test):
-    svc = SVC()
+    pipe = Pipeline([('ss', SS),('svc', SVC)])
 
     # Hiperparámetros
     #Complex
-    param_complex_grid = {'C': [0.1, 1, 10, 100],  
-                  'gamma': [1, 0.1, 0.01, 0.001, 0.0001],
-                  'kernel': ['linear', 'poly', 'rbf', 'sigmoid', 'precomputed']}  
-    #Basic
-    param_basic_grid = {'C': np.logspace(-5, 10, 30), 'gamma':[0.01, 0.1, 1, 10]}
+    param_complex_grid = {'ss':[StandardScaler(), MinMaxScaler(),Normalizer(), MaxAbsScaler()],
+                          'svc__C': [0.1, 1, 10, 100],  
+                          'svc__gamma': [1, 0.1, 0.01, 0.001, 0.0001],
+                          'svc__kernel': ['linear', 'poly', 'rbf', 'sigmoid', 'precomputed']} 
 
-    svc_cv = GridSearchCV(svc, 
-                          param_complex_grid,
+    #Basic
+    param_basic_grid = {'C': np.logspace(-5, 10, 30),
+                        'gamma':[0.01, 0.1, 1, 10]}
+
+    svc_cv = GridSearchCV(pipe, param_complex_grid,
                           #verbose=3,
                           scoring = 'accuracy',
                           n_jobs=-1,# usar todo el procesador  
-                          cv = 10)
+                          cv = 5)
 
     svc_cv.fit(X_train, y_train)
-    print("accuracy without scaling:  {}".format(svc_cv.score(X_test, y_test).round(2)))
 
-    # StandardScaler 
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    svc_cv.fit(X_train_scaled, y_train)
-    X_test_scaled = scaler.transform(X_test)
-    print("accuracy with scaling StandardScaler ", svc_cv.score(X_test_scaled, y_test))
-    besT = svc_cv.best_params_
-    return besT
+    print("Accuracy: ", svc_cv.score(X_test, y_test))
+    print('Data Normalization: ',svc_cv.best_estimator_['ss'])
+    print('')
+    print(svc_cv.best_estimator_.get_params()['svc'])
+    print('')
+    best= print("Best parameters:",svc_cv.best_params_)
+    return best
