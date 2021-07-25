@@ -89,7 +89,8 @@ def xgbc_enhance(X_train, y_train, X_test, y_test):
                   #'missing':[-999]}
 
     # A parameter grid for XGBoost
-    params = {
+    params = {'std_slc':[StandardScaler(), MinMaxScaler(),Normalizer(), MaxAbsScaler()],
+            'xgbc__eval_metric':['mlogloss'],
             'xgbc__n_estimators' : [500],
             'xgbc__learning_rate' : [0.01, 0.02, 0.05, 0.1, 0.25],
             'xgbc__min_child_weight': [1, 5, 7, 10],
